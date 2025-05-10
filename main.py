@@ -1,10 +1,11 @@
 import psutil
 
+
 def check_videocall_apps() -> bool:
-    keywords = ['teams', 'zoom', 'meet', 'webex', 'skype']
-    for proc in psutil.process_iter(['name']):
+    keywords = ["teams", "zoom", "meet", "webex", "skype"]
+    for proc in psutil.process_iter(["name"]):
         try:
-            name = proc.info['name'].lower()
+            name = proc.info["name"].lower()
             for keyword in keywords:
                 if keyword in name:
                     return True
