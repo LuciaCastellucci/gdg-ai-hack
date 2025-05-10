@@ -4,6 +4,7 @@ import time
 import threading
 import wave
 from typing import Callable
+from agents.call_assistant_agent.agent import process_audio_file
 
 
 class AudioMonitor:
@@ -11,7 +12,7 @@ class AudioMonitor:
         self,
         process_function: Callable[[np.ndarray, int], None],
         silence_threshold: int = 500,  # Modificato per int16
-        max_segment_duration: float = 120.0,  # 2 minuti in secondi
+        max_segment_duration: float = 10.0,  # 2 minuti in secondi
         min_segment_duration: float = 1.0,  # Lunghezza minima del batch in secondi
         sample_rate: int = 44100,
         chunk_size: int = 1024,
@@ -208,16 +209,26 @@ def process(audio_data: np.ndarray, sample_rate: int):
     duration = len(audio_data) / (sample_rate)
     print(f"Elaborazione di {duration:.2f} secondi di dati audio")
 
+    # Crea la directory file/audio se non esiste
+    import os
+    audio_dir = os.path.join("output", "audio")
+    os.makedirs(audio_dir, exist_ok=True)
+
     # Salva come file WAV senza conversioni (già in formato int16)
     timestamp = int(time.time())
     filename = f"audio_segment_{timestamp}.wav"
-    with wave.open(filename, "w") as wf:
+    filepath = os.path.join(audio_dir, filename)
+    with wave.open(filepath, "w") as wf:
         wf.setnchannels(1)  # Mono
         wf.setsampwidth(2)  # Int16 = 2 bytes
         wf.setframerate(sample_rate)
         wf.writeframes(audio_data.tobytes())
 
-    print(f"Audio salvato come {filename}")
+    print(f"Audio salvato come {filepath}")
+    
+    print("Elaborazione del file audio tramite agente...")
+    result = process_audio_file(filepath)
+    print(f"Risultato dell'analisi: {result}")
 
 
 if __name__ == "__main__":

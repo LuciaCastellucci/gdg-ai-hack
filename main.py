@@ -8,8 +8,6 @@ import time
 # Aggiungi il percorso della directory agents al path di Python
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
 
-# Importa l'agente
-from agents.call_assistant_agent.agent import run
 from audio import AudioMonitor, process
 
 # Variabile globale per tenere traccia del monitor audio
@@ -61,20 +59,19 @@ if __name__ == "__main__":
     apps = check_videocall_apps()
     if apps:
         print("Video call applications are running.")
-        # Inizializza e avvia l'agente
-        # run()  # Utilizzo la funzione run() dell'agent
+        # Avvia il listener per la combinazione di tasti in un thread separato
+        keyboard_thread = threading.Thread(target=start_keyboard_listener, daemon=True)
+        keyboard_thread.start()
+        
+        try:
+            # Mantieni il thread principale in esecuzione
+            while True:
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            print("\nProgramma interrotto dall'utente.")
+            if audio_monitor and monitoring_active:
+                audio_monitor.stop_monitoring()
     else:
         print("No video call applications are running.")
     
-    # Avvia il listener per la combinazione di tasti in un thread separato
-    keyboard_thread = threading.Thread(target=start_keyboard_listener, daemon=True)
-    keyboard_thread.start()
     
-    try:
-        # Mantieni il thread principale in esecuzione
-        while True:
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        print("\nProgramma interrotto dall'utente.")
-        if audio_monitor and monitoring_active:
-            audio_monitor.stop_monitoring()
