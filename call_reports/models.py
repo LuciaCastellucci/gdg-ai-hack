@@ -62,7 +62,7 @@ class CallLog(BaseModel):
     date: str
     topic: str
     participants: List[str]
-    report: Report
+    report: str
 
     model_config = {
         "populate_by_name": True,
@@ -73,13 +73,7 @@ class CallLog(BaseModel):
                 "date": "2025-05-10",
                 "topic": "Team Meeting",
                 "participants": ["Alice", "Bob", "Charlie"],
-                "report": {
-                    "date": "2025-05-10",
-                    "topic": "Team Meeting",
-                    "content": "Discussion about new AI features",
-                    "timestamp_expected": "10:00",
-                    "timestamp_actual": "10:05",
-                },
+                "report": "Discussion about new AI features and project timeline. Action items were assigned to team members.",
             }
         },
     }

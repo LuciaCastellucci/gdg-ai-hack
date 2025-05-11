@@ -89,13 +89,7 @@ def save_synthesis_to_db(synthesis: str, topic: str, participants: List[str]) ->
             "date": current_date,
             "topic": topic,
             "participants": participants,
-            "report": {
-                "date": current_date,
-                "topic": topic,
-                "content": synthesis,
-                "timestamp_expected": datetime.datetime.now().strftime("%H:%M"),
-                "timestamp_actual": datetime.datetime.now().strftime("%H:%M"),
-            },
+            "report": synthesis
         }
 
         # Make the API call
@@ -215,6 +209,10 @@ def synthesize_audio_folder(
         save_synthesis_to_db(synthesis, topic, participants)
 
     return synthesis
+
+
+def synthesize_report_content(file_contents: List[str]) -> str:
+    pass
 
 
 if __name__ == "__main__":
