@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body, status
+from fastapi import FastAPI, HTTPException, Body, status, Query
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -52,6 +52,15 @@ async def get_report(report_id: str):
     return report
 
 
+@app.get("/reports/topic/{topic}", response_model=List[Report])
+async def get_reports_by_topic(topic: str):
+    """
+    Get all reports with a specific topic
+    """
+    reports = await reports_collection.find({"topic": topic}).to_list(1000)
+    return reports
+
+
 @app.post("/reports", response_model=Report)
 async def create_report(report: Report = Body(...)):
     """
@@ -86,6 +95,15 @@ async def get_call_log(call_log_id: str):
         raise HTTPException(status_code=404, detail="Call log not found")
 
     return call_log
+
+
+@app.get("/call-logs/topic/{topic}", response_model=List[CallLog])
+async def get_call_logs_by_topic(topic: str):
+    """
+    Get all call logs with a specific topic
+    """
+    call_logs = await call_logs_collection.find({"topic": topic}).to_list(1000)
+    return call_logs
 
 
 @app.post("/call-logs", response_model=CallLog)

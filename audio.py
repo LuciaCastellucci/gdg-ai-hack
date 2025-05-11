@@ -211,6 +211,7 @@ def process(audio_data: np.ndarray, sample_rate: int):
 
     # Crea la directory file/audio se non esiste
     import os
+
     audio_dir = os.path.join("output", "audio")
     os.makedirs(audio_dir, exist_ok=True)
 
@@ -225,7 +226,7 @@ def process(audio_data: np.ndarray, sample_rate: int):
         wf.writeframes(audio_data.tobytes())
 
     print(f"Audio salvato come {filepath}")
-    
+
     print("Elaborazione del file audio tramite agente...")
     result = process_audio_file(filepath)
     print(f"Risultato dell'analisi: {result}")
