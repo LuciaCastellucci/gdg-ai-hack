@@ -211,8 +211,62 @@ def synthesize_audio_folder(
     return synthesis
 
 
-def synthesize_report_content(file_contents: List[str]) -> str:
-    pass
+def synthesize_report_content(file_contents: List[str], call_reports: List[str]) -> str:
+    """
+    Synthesize the content of files and call reports using LLM.
+    
+    Args:
+        file_contents: List of strings containing the text of the files
+        call_reports: List of strings containing the call reports
+        
+    Returns:
+        A string containing the synthesis of the content
+    """
+    print("Synthesizing the content of files and reports...")
+    
+    combined_text = ""
+    
+    if file_contents:
+        combined_text += "# FILE CONTENTS\n\n"
+        for i, content in enumerate(file_contents):
+            combined_text += f"--- File {i+1} ---\n"
+            combined_text += f"{content}\n\n"
+    
+    if call_reports:
+        combined_text += "# CALL REPORTS\n\n"
+        for i, report in enumerate(call_reports):
+            combined_text += f"--- Report {i+1} ---\n"
+            combined_text += f"{report}\n\n"
+    
+    if not combined_text:
+        return "No content to synthesize."
+    
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-1.5-pro",
+            google_api_key=GEMINI_API_KEY,
+            temperature=0.2,  # Slight creativity for a better synthesis
+        )
+        
+        response = llm.invoke(
+            [
+                SystemMessage(
+                    content="""
+            Synthesize the following material into a well-structured summary.
+            Organize the summary into logical sections, highlighting the main concepts.
+            Identify and connect related information across different contents.
+            Highlight points of uncertainty or contradictions, if present.
+            Include important quotes and relevant information.
+            """
+                ),
+                HumanMessage(content=combined_text),
+            ]
+        )
+        
+        return response.content
+    except Exception as e:
+        print(f"Error during content synthesis: {e}")
+        return f"Synthesis error: {str(e)}"
 
 
 if __name__ == "__main__":
