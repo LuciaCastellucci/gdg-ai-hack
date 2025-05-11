@@ -4,7 +4,9 @@ import time
 import threading
 import wave
 from typing import Callable
-from agents.call_assistant_agent.agent import process_audio_file
+
+# Non importiamo direttamente la funzione qui per evitare importazioni circolari,
+# la importeremo solo dove necessario
 
 
 class AudioMonitor:
@@ -12,11 +14,12 @@ class AudioMonitor:
         self,
         process_function: Callable[[np.ndarray, int], None],
         silence_threshold: int = 500,  # Modificato per int16
-        max_segment_duration: float = 10.0,  # 2 minuti in secondi
-        min_segment_duration: float = 1.0,  # Lunghezza minima del batch in secondi
+        max_segment_duration: float = 20.0,  # 2 minuti in secondi
+        min_segment_duration: float = 7.0,  # Lunghezza minima del batch in secondi
         sample_rate: int = 44100,
         chunk_size: int = 1024,
         channels: int = 1,
+        notification_callback=None,
     ):
         self.process_function = process_function
         self.silence_threshold = silence_threshold
@@ -25,6 +28,7 @@ class AudioMonitor:
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
         self.channels = channels
+        self.notification_callback = notification_callback
 
         self.audio = pyaudio.PyAudio()
         self.stream = None
@@ -172,7 +176,7 @@ class AudioMonitor:
         # Elabora i dati audio in un thread separato per evitare il blocco
         buffer_to_process = self.current_buffer.copy()
         threading.Thread(
-            target=self.process_function, args=(buffer_to_process, self.sample_rate)
+            target=self.process_function, args=(buffer_to_process, self.sample_rate, self.notification_callback)
         ).start()
 
         # Reimposta il buffer e aggiorna il tempo dell'ultimo processo
@@ -204,7 +208,7 @@ class AudioMonitor:
 
 
 # Esempio di utilizzo
-def process(audio_data: np.ndarray, sample_rate: int):
+def process(audio_data: np.ndarray, sample_rate: int, notification_callback=None):
     """Funzione di esempio per l'elaborazione"""
     duration = len(audio_data) / (sample_rate)
     print(f"Elaborazione di {duration:.2f} secondi di dati audio")
@@ -226,7 +230,11 @@ def process(audio_data: np.ndarray, sample_rate: int):
         wf.writeframes(audio_data.tobytes())
 
     print(f"Audio salvato come {filepath}")
+
+    # Importiamo process_audio_file qui per evitare importazioni circolari
+    from agents.call_assistant_agent.agent import process_audio_file
     
+    # Processiamo il file audio (il callback globale è già impostato in main.py)
     process_audio_file(filepath)
 
 

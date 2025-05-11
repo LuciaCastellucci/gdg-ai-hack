@@ -15,6 +15,7 @@ from synthesizer import synthesize_audio_folder
 from gui import NotificationDot  # Importa la classe NotificationDot
 from PySide6.QtWidgets import QApplication
 from call_reports.reports import create_report  # Importa la funzione create_report
+from agents.call_assistant_agent.agent import set_notification_callback  # Importa la funzione per impostare il callback
 
 # Variabile globale per tenere traccia del monitor audio
 audio_monitor = None
@@ -107,6 +108,9 @@ def toggle_audio_monitoring():
             audio_monitor.stop_monitoring()
             audio_monitor = None
         monitoring_active = False
+        
+        # Resetta il callback globale quando il monitoraggio audio viene disattivato
+        set_notification_callback(None)
 
         # Esegui la sintesi delle registrazioni audio dopo l'interruzione del monitoraggio
         print("\nAvvio della sintesi delle registrazioni audio...")
@@ -167,9 +171,27 @@ def toggle_audio_monitoring():
             print(f"Errore durante la sintesi: {e}")
     else:
         print("Avvio del monitoraggio audio...")
+        
+        # Funzione di notifica per file audio - con protezione anti-loop
+        last_notification_time = [0]  # Usiamo una lista per mantenere lo stato
+        
+        def notify_audio(message):
+            # Evita notifiche troppo frequenti (almeno 5 secondi tra una notifica e l'altra)
+            current_time = time.time()
+            if current_time - last_notification_time[0] < 5:
+                return
+                
+            if notification_dot:
+                notification_dot.set_notification(message)
+                last_notification_time[0] = current_time
+        
+        # Configura il callback globale per gli agenti quando si attiva il monitoraggio audio
+        set_notification_callback(notify_audio)
+                
         audio_monitor = AudioMonitor(
             process_function=process,
             min_segment_duration=2.0,  # Imposta la durata minima del batch a 2 secondi
+            notification_callback=notify_audio
         )
         audio_monitor.start_monitoring()
         monitoring_active = True
@@ -240,19 +262,25 @@ def manage_gui_state(videocall_running: bool):
                 if notification_dot:
                     notification_dot.set_notification(message)
             
+            # Configuriamo la funzione di callback per le notifiche degli agenti
+            set_notification_callback(notify_report)
+            
             # Chiamiamo il metodo create_report per generare report
-            try:
-                create_report(notification_callback=notify_report)
-            except Exception as e:
-                print(f"Errore durante la generazione dei report: {e}")
-                if notification_dot:
-                    notification_dot.set_notification(f"Errore durante la generazione dei report: {e}")
-        
+            # ma solo una volta all'avvio della videochiamata
+            if last_videocall_status == False:  # Solo quando passiamo da False a True
+                try:
+                    create_report(notification_callback=notify_report)
+                except Exception as e:
+                    print(f"Errore durante la generazione dei report: {e}")
+                    
         elif not videocall_running and notification_dot is not None:
             # Disattiva la GUI
             print("Disattivazione della GUI - Nessuna videochiamata in corso")
             notification_dot.hide()  # Nasconde la GUI invece di distruggerla
             gui_active = False
+            
+            # Resetta il callback degli agenti quando la GUI è disattivata
+            set_notification_callback(None)
         
         # Aggiorna lo stato
         last_videocall_status = videocall_running

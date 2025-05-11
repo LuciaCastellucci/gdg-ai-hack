@@ -20,6 +20,14 @@ if not gemini_api_key:
         "Google API key not found. Make sure the .env file contains the GEMINI_API_KEY variable."
     )
 
+# Variabile globale per la funzione di callback per le notifiche
+notification_callback_function = None
+
+def set_notification_callback(callback_function):
+    """Imposta la funzione di callback per le notifiche"""
+    global notification_callback_function
+    notification_callback_function = callback_function
+
 
 # Define tools for the agent
 @tool
@@ -68,7 +76,15 @@ def find_file(file_description: str) -> str:
         if not os.path.exists(file_path):
             return f"Error: File not found at {file_path}"
         
+
         try:
+            # Invia una notifica se è stata impostata una funzione di callback globale
+            global notification_callback_function
+            if notification_callback_function:
+                notification_callback_function(f"📂 Apertura file: {os.path.basename(file_path)}")
+            else:
+                print(f"Apertura file: {file_path} (notifica non disponibile)")
+                
             if platform.system() == 'Darwin':  # macOS
                 subprocess.run(['open', file_path])
             elif platform.system() == 'Windows':
@@ -91,6 +107,11 @@ def open_file(file_path: str) -> str:
         return f"Error: File not found at {file_path}"
 
     try:
+        # Invia una notifica se è stata impostata una funzione di callback globale
+        global notification_callback_function
+        if notification_callback_function:
+            notification_callback_function(f"📂 Apertura file: {os.path.basename(file_path)}")
+            
         if platform.system() == "Darwin":  # macOS
             subprocess.run(["open", file_path])
         elif platform.system() == "Windows":
@@ -118,6 +139,11 @@ def list_audio_files(directory: str = "./") -> str:
         if not audio_files:
             return f"No WAV files found in {directory}"
 
+        # Invia una notifica se è stata impostata una funzione di callback globale
+        global notification_callback_function
+        if notification_callback_function:
+            notification_callback_function(f"🔍 Ricerca file audio in: {directory}")
+            
         result = f"Found {len(audio_files)} WAV files in {directory}:\n"
         for i, file_path in enumerate(audio_files, 1):
             result += f"{i}. {file_path.name}\n"
@@ -209,6 +235,10 @@ def process_audio_file(file_path):
     """Process an audio file with Gemini for transcription, then use the agent to act on the content"""
     try:
         print(f"Processing audio file: {file_path}")
+        
+        # Invia una notifica se è stata impostata una funzione di callback globale
+        global notification_callback_function
+        
         # Convert the audio file to base64
         base64_audio = audio_to_base64(file_path)
         
