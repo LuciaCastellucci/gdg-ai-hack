@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional, Tuple
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -6,6 +6,17 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import os
 import datetime
+import requests
+from datetime import datetime, timedelta
+import sys
+from pathlib import Path
+
+# Add the parent directory to sys.path to import synthesizer
+parent_dir = str(Path(__file__).parent.parent)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+    
+from synthesizer import synthesize_report_content
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
@@ -79,7 +90,149 @@ def fetch_topics_from_calendar():
             return
         topics = []
         for event in events:
-            topics.append(event["summary"])
+            start = event["start"].get("dateTime", event["start"].get("date"))
+            topics.append((start, event["summary"]))
         return topics
     except HttpError as error:
         print(f"An error occurred: {error}")
+
+
+def get_call_logs_by_topic(topic: str) -> List[str]:
+    """
+    Retrieve call logs from the API by topic.
+    
+    Args:
+        topic (str): The topic to search for
+        
+    Returns:
+        List[str]: List of call log reports
+    """
+    try:
+        response = requests.get(f"http://localhost:8000/call-logs/topic/{topic}")
+        if response.status_code == 200:
+            call_logs = response.json()
+            return [log.get("report", "") for log in call_logs]
+        else:
+            print(f"Failed to retrieve call logs: HTTP {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"Error retrieving call logs: {e}")
+        return []
+
+
+def get_reports_by_topic(topic: str) -> List[str]:
+    """
+    Retrieve reports from the API by topic.
+    
+    Args:
+        topic (str): The topic to search for
+        
+    Returns:
+        List[str]: List of reports
+    """
+    try:
+        response = requests.get(f"http://localhost:8000/reports/topic/{topic}")
+        if response.status_code == 200:
+            reports = response.json()
+            return [report.get("content", "") for report in reports]
+        else:
+            print(f"Failed to retrieve reports: HTTP {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"Error retrieving reports: {e}")
+        return []
+
+
+def parse_datetime(dt_string: str) -> Optional[datetime]:
+    """
+    Parse the datetime string from Google Calendar API.
+    
+    Args:
+        dt_string (str): The datetime string (e.g., "2025-06-01T07:30:00+02:00")
+        
+    Returns:
+        Optional[datetime]: Parsed datetime object or None if parsing failed
+    """
+    try:
+        return datetime.fromisoformat(dt_string)
+    except ValueError:
+        print(f"Failed to parse datetime: {dt_string}")
+        return None
+
+
+def create_report():
+    """
+    Create reports for upcoming calendar events based on their start time.
+    
+    For events starting in more than 60 minutes:
+    - Gather relevant files and call logs
+    - Synthesize content for preparation
+    
+    For events starting in more than 30 minutes (but less than 60):
+    - Retrieve existing reports for quick review
+    """
+    topics = fetch_topics_from_calendar()
+    if not topics:
+        print("No topics found in calendar.")
+        return
+    
+    current_time = datetime.now().astimezone()  # Current time with timezone info
+    print(f"Current time: {current_time}")
+    print(f"Found {len(topics)} upcoming events")
+    
+    for start_str, topic in topics:
+        start_time = parse_datetime(start_str)
+        if not start_time:
+            continue
+        
+        time_diff = start_time - current_time
+        print(f"Event: {topic} starting at {start_time} (in {time_diff})")
+        
+        # For events more than 60 minutes in the future
+        if time_diff >= timedelta(minutes=60):
+            print(f"Preparing comprehensive report for: {topic}")
+            files = find_files_with_topic(topic)
+            call_logs = get_call_logs_by_topic(topic)
+            
+            if files or call_logs:
+                synthesis = synthesize_report_content(files, call_logs)
+                print(f"Synthesis generated for {topic}: {len(synthesis)} characters")
+                
+                # Create a Report object and save it to the database
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                expected_time = start_time.strftime("%H:%M")
+                actual_time = datetime.now().strftime("%H:%M")
+                
+                report_data = {
+                    "date": current_date,
+                    "topic": topic,
+                    "content": synthesis,
+                    "timestamp_expected": None,
+                    "timestamp_actual": None
+                }
+                
+                try:
+                    response = requests.post(
+                        "http://localhost:8000/reports",
+                        json=report_data,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    if response.status_code == 201:
+                        print(f"Report saved to database with ID: {response.json().get('_id')}")
+                    else:
+                        print(f"Failed to save report: HTTP {response.status_code}")
+                except Exception as e:
+                    print(f"Error saving report to database: {e}")
+            else:
+                print(f"No files or call logs found for topic: {topic}")
+        
+        # For events between 30-60 minutes in the future
+        elif time_diff >= timedelta(minutes=30):
+            print(f"Retrieving quick reference reports for: {topic}")
+            reports = get_reports_by_topic(topic)
+            if reports:
+                print(f"Found {len(reports)} existing reports for {topic}")
+                # Here you could display the reports or save them for quick access
+                # TODO: print reports
+            else:
+                print(f"No existing reports found for topic: {topic}")
