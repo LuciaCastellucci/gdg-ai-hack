@@ -226,9 +226,7 @@ def process(audio_data: np.ndarray, sample_rate: int):
 
     print(f"Audio salvato come {filepath}")
     
-    print("Elaborazione del file audio tramite agente...")
-    result = process_audio_file(filepath)
-    print(f"Risultato dell'analisi: {result}")
+    process_audio_file(filepath)
 
 
 if __name__ == "__main__":

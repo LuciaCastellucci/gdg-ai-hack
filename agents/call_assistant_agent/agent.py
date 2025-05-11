@@ -25,22 +25,26 @@ def find_file(file_description: str) -> str:
     Find a file in the file system based on the description.
     Example description: "text file in documents folder", "spreadsheet with budget data"
     """
+    print(f"Searching for files matching: {file_description}")
     # Extract potential filename or keywords from the description
     keywords = file_description.lower().split()
     
     # Define search paths (add or modify based on your needs)
     search_paths = [
-        os.path.expanduser("~/Documents"),
-        os.path.expanduser("~/Desktop"),
+        os.path.expanduser("~\\Documents"),
+        os.path.expanduser("~\\Desktop"),
         os.path.expanduser("~"),
         # Add more paths as needed
     ]
+
+    print(f"Search paths: {search_paths}")
     
     potential_files = []
     
     # Search for files that match the keywords
     for path in search_paths:
         if os.path.exists(path):
+            print(f"Searching in: {path}")
             for root, _, files in os.walk(path):
                 for file in files:
                     file_lower = file.lower()
@@ -52,18 +56,34 @@ def find_file(file_description: str) -> str:
     # Sort by score (highest first)
     potential_files.sort(key=lambda x: x[1], reverse=True)
     
+    print(f"Potential files found: {potential_files}")
+
     if potential_files:
         top_files = potential_files[:3]  # Get top 3 matches
         result = "Found these files:\n"
         for i, (file_path, _) in enumerate(top_files, 1):
             result += f"{i}. {file_path}\n"
-        return result
+        file_path = os.path.expanduser(file_path)
+        if not os.path.exists(file_path):
+            return f"Error: File not found at {file_path}"
+        
+        try:
+            if platform.system() == 'Darwin':  # macOS
+                subprocess.run(['open', file_path])
+            elif platform.system() == 'Windows':
+                os.startfile(file_path)
+            else:  # Linux
+                subprocess.run(['xdg-open', file_path])
+            return f"Successfully opened {file_path}"
+        except Exception as e:
+            return f"Error opening file: {e}"
     else:
         return "No files found matching that description."
 
 @tool
 def open_file(file_path: str) -> str:
     """Open a file with the default application."""
+    print(f"Opening file: {file_path}")
     file_path = os.path.expanduser(file_path)
     if not os.path.exists(file_path):
         return f"Error: File not found at {file_path}"
@@ -84,6 +104,7 @@ def list_audio_files(directory: str = "./") -> str:
     """
     List all WAV audio files in the specified directory.
     """
+    print(f"Listing audio files in directory: {directory}")
     try:
         directory_path = Path(directory)
         if not directory_path.exists() or not directory_path.is_dir():
@@ -107,14 +128,17 @@ def analyze_audio_file(file_path: str) -> str:
     Analyze the content of an audio file and return a description.
     This uses the model's understanding of the audio content.
     """
+    print(f"Analyzing audio file: {file_path}")
     try:
         # Verify the file exists
         file_path = os.path.abspath(file_path)
         if not os.path.exists(file_path):
             return f"Error: File not found at {file_path}"
             
-        # This is a placeholder - the actual processing is done in process_audio_file
-        return f"Audio file {os.path.basename(file_path)} will be analyzed."
+        # Instead of just returning a placeholder, actually process the audio
+        # using the process_audio_file function
+        result = process_audio_file(file_path)
+        return f"Audio analysis result: {result}"
     except Exception as e:
         return f"Error analyzing audio file: {e}"
 
@@ -127,8 +151,7 @@ def audio_to_base64(file_path):
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-pro",  # Using the pro model for multimodal capabilities
     google_api_key=gemini_api_key,
-    temperature=0,
-    convert_system_message_to_human=True
+    temperature=0,  # Use a very low temperature for more deterministic responses
 )
 
 # Create the tools list
@@ -136,8 +159,9 @@ tools = [find_file, open_file, list_audio_files, analyze_audio_file]
 
 # Create the agent prompt
 prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are a helpful assistant that can process both text and audio inputs. You can help users find and open files from their computer, and understand the content of audio files.
-
+    ("system", """You are a helpful assistant used for work. You can process audio and understand what is 
+     said to help users in their work.
+     
 You have access to the following tools:
 {tools}
 
@@ -152,7 +176,9 @@ Observation: the result of the action
 Thought: now I know the final answer
 Final Answer: the final answer to the user's question
 
-When asked about an audio file, first use list_audio_files if needed, then use analyze_audio_file to understand its content.
+IMPORTANT INSTRUCTIONS:
+If the user mentions any file or document name, or speaks about finding documents or files, use the find_file tool with those keywords.
+Scenario example: user says "Let's talk about file budget.xlsx" -> Use find_file with "budget.xlsx"
 
 {agent_scratchpad}
 """),
@@ -171,12 +197,13 @@ agent = AgentExecutor(
 )
 
 def process_audio_file(file_path):
-    """Process an audio file directly with the Gemini model to understand its content"""
+    """Process an audio file with Gemini for transcription, then use the agent to act on the content"""
     try:
+        print(f"Processing audio file: {file_path}")
         # Convert the audio file to base64
         base64_audio = audio_to_base64(file_path)
         
-        # Use the Gemini model directly for audio processing
+        # Use the Gemini model directly for audio processing/transcription
         direct_llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-pro",
             google_api_key=gemini_api_key,
@@ -184,7 +211,7 @@ def process_audio_file(file_path):
         )
         
         response = direct_llm.invoke([
-            SystemMessage(content="Describe this audio content in detail. What can you hear? If there's speech, what is being said?"),
+            SystemMessage(content="Transcribe what people in this audio says. If the speaker mentions any filenames or documents, make sure to transcribe them accurately, but if you don't say any file name, just transcribe the audio."),
             HumanMessage(content=[
                 {
                     "type": "media",
@@ -194,48 +221,23 @@ def process_audio_file(file_path):
             ])
         ])
         
-        # Return the model's description of the audio
-        return response.content
-    except Exception as e:
-        return f"Error processing audio file: {e}"
-
-def main():
-    print("File and Audio Assistant")
-    print("------------------------")
-    print("Options:")
-    print("1. Process a query")
-    print("2. List audio files")
-    print("3. Analyze a specific audio file")
-    print("4. Exit")
-    
-    while True:
-        choice = input("\nSelect an option (1-4): ")
+        # Get the transcription result
+        transcription = response.content
+        print(f"Transcription result: {transcription}")
         
-        if choice == "1":
-            user_query = input("Enter your query: ")
-            result = agent.invoke({"input": user_query})
-            print("\nResponse:", result["output"])
-            
-        elif choice == "2":
-            directory = input("Enter directory path (or press Enter for current directory): ") or "./"
-            print(list_audio_files(directory))
-                
-        elif choice == "3":
-            file_path = input("Enter the path to the audio file: ")
-            if os.path.exists(file_path) and file_path.lower().endswith('.wav'):
-                print("Analyzing audio file...")
-                analysis = process_audio_file(file_path)
-                print("\nAudio Analysis:")
-                print(analysis)
-            else:
-                print(f"Error: File does not exist or is not a WAV file: {file_path}")
-                
-        elif choice == "4":
-            print("Goodbye!")
-            break
-            
-        else:
-            print("Invalid option. Please select 1-4.")
-
-if __name__ == "__main__":
-    main()
+        # Now pass the transcription to the agent to take action based on the content
+        print(f"Passing transcription to agent for processing...")
+        try:
+            # Run the agent with the transcription as input
+            agent_result = agent.invoke({"input": f"Audio Transcription: {transcription}"})
+            final_answer = agent_result.get("output", "The agent couldn't process the transcription.")
+            #print(f"Agent result: {final_answer}")
+            return f"Transcription: {transcription}\n\nAgent Action: {final_answer}"
+        except Exception as agent_error:
+            print(f"Error when running agent: {agent_error}")
+            # Fallback: just return the transcription if the agent fails
+            return f"Transcription: {transcription}\n\nNote: Couldn't process with agent due to error: {agent_error}"
+        
+    except Exception as e:
+        print(f"Error in process_audio_file: {e}")
+        return f"Error processing audio file: {e}"
