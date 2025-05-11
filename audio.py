@@ -211,6 +211,7 @@ def process(audio_data: np.ndarray, sample_rate: int):
 
     # Crea la directory file/audio se non esiste
     import os
+
     audio_dir = os.path.join("output", "audio")
     os.makedirs(audio_dir, exist_ok=True)
 

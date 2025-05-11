@@ -16,7 +16,10 @@ load_dotenv()
 # Get Google API key
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if not gemini_api_key:
-    raise ValueError("Google API key not found. Make sure the .env file contains the GEMINI_API_KEY variable.")
+    raise ValueError(
+        "Google API key not found. Make sure the .env file contains the GEMINI_API_KEY variable."
+    )
+
 
 # Define tools for the agent
 @tool
@@ -28,7 +31,7 @@ def find_file(file_description: str) -> str:
     print(f"Searching for files matching: {file_description}")
     # Extract potential filename or keywords from the description
     keywords = file_description.lower().split()
-    
+
     # Define search paths (add or modify based on your needs)
     search_paths = [
         os.path.expanduser("~\\Documents"),
@@ -40,7 +43,7 @@ def find_file(file_description: str) -> str:
     print(f"Search paths: {search_paths}")
     
     potential_files = []
-    
+
     # Search for files that match the keywords
     for path in search_paths:
         if os.path.exists(path):
@@ -52,7 +55,7 @@ def find_file(file_description: str) -> str:
                     if score > 0:
                         full_path = os.path.join(root, file)
                         potential_files.append((full_path, score))
-    
+
     # Sort by score (highest first)
     potential_files.sort(key=lambda x: x[1], reverse=True)
     
@@ -80,6 +83,7 @@ def find_file(file_description: str) -> str:
     else:
         return "No files found matching that description."
 
+
 @tool
 def open_file(file_path: str) -> str:
     """Open a file with the default application."""
@@ -87,17 +91,18 @@ def open_file(file_path: str) -> str:
     file_path = os.path.expanduser(file_path)
     if not os.path.exists(file_path):
         return f"Error: File not found at {file_path}"
-    
+
     try:
-        if platform.system() == 'Darwin':  # macOS
-            subprocess.run(['open', file_path])
-        elif platform.system() == 'Windows':
+        if platform.system() == "Darwin":  # macOS
+            subprocess.run(["open", file_path])
+        elif platform.system() == "Windows":
             os.startfile(file_path)
         else:  # Linux
-            subprocess.run(['xdg-open', file_path])
+            subprocess.run(["xdg-open", file_path])
         return f"Successfully opened {file_path}"
     except Exception as e:
         return f"Error opening file: {e}"
+
 
 @tool
 def list_audio_files(directory: str = "./") -> str:
@@ -109,18 +114,19 @@ def list_audio_files(directory: str = "./") -> str:
         directory_path = Path(directory)
         if not directory_path.exists() or not directory_path.is_dir():
             return f"Error: Directory {directory} does not exist"
-        
+
         audio_files = list(directory_path.glob("*.wav"))
-        
+
         if not audio_files:
             return f"No WAV files found in {directory}"
-        
+
         result = f"Found {len(audio_files)} WAV files in {directory}:\n"
         for i, file_path in enumerate(audio_files, 1):
             result += f"{i}. {file_path.name}\n"
         return result
     except Exception as e:
         return f"Error listing audio files: {e}"
+
 
 @tool
 def analyze_audio_file(file_path: str) -> str:
@@ -142,10 +148,12 @@ def analyze_audio_file(file_path: str) -> str:
     except Exception as e:
         return f"Error analyzing audio file: {e}"
 
+
 # Function to convert audio to base64
 def audio_to_base64(file_path):
     with open(file_path, "rb") as audio_file:
-        return base64.b64encode(audio_file.read()).decode('utf-8')
+        return base64.b64encode(audio_file.read()).decode("utf-8")
+
 
 # Create the LLM model using Google Gemini with multimodal capabilities
 llm = ChatGoogleGenerativeAI(
@@ -181,9 +189,11 @@ If the user mentions any file or document name, or speaks about finding document
 Scenario example: user says "Let's talk about file budget.xlsx" -> Use find_file with "budget.xlsx"
 
 {agent_scratchpad}
-"""),
-    ("human", "{input}"),
-])
+""",
+        ),
+        ("human", "{input}"),
+    ]
+)
 
 # Create the ReAct agent
 react_agent = create_react_agent(llm, tools, prompt)
@@ -196,6 +206,7 @@ agent = AgentExecutor(
     handle_parsing_errors=True,
 )
 
+
 def process_audio_file(file_path):
     """Process an audio file with Gemini for transcription, then use the agent to act on the content"""
     try:
@@ -205,9 +216,7 @@ def process_audio_file(file_path):
         
         # Use the Gemini model directly for audio processing/transcription
         direct_llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-pro",
-            google_api_key=gemini_api_key,
-            temperature=0
+            model="gemini-1.5-pro", google_api_key=gemini_api_key, temperature=0
         )
         
         response = direct_llm.invoke([
