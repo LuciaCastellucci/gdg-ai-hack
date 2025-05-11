@@ -12,10 +12,19 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "agents"))
 
 from audio import AudioMonitor, process
 from synthesizer import synthesize_audio_folder
+from gui import NotificationDot  # Importa la classe NotificationDot
+from PySide6.QtWidgets import QApplication
 
 # Variabile globale per tenere traccia del monitor audio
 audio_monitor = None
 monitoring_active = False
+
+# Variabili globali per la GUI
+notification_dot = None
+gui_active = False
+last_videocall_status = False
+videocall_check_interval = 5  # Controlla lo stato delle videochiamate ogni 5 secondi
+app = None  # Istanza di QApplication
 
 # Identifica il sistema operativo
 SYSTEM = platform.system()
@@ -193,6 +202,67 @@ def check_videocall_apps() -> bool:
     return False
 
 
+def manage_gui_state(videocall_running: bool):
+    """Gestisce l'attivazione e la disattivazione della GUI in base allo stato delle videochiamate"""
+    global notification_dot, gui_active, last_videocall_status, app
+    
+    # Inizializza l'applicazione Qt se non è già stato fatto
+    if app is None:
+        print("Inizializzazione dell'applicazione Qt...")
+        if not QApplication.instance():
+            app = QApplication(sys.argv)
+    
+    # Se è la prima volta o se lo stato è cambiato
+    if notification_dot is None or videocall_running != last_videocall_status:
+        if videocall_running:
+            # Avvia la GUI
+            print("Avvio della GUI - Videochiamata in corso")
+            
+            # Se non esiste l'istanza NotificationDot, creala
+            if notification_dot is None:
+                # Percorso dell'icona nella stessa directory del file Python principale
+                icon_path = os.path.join(os.path.dirname(__file__), "call_assistant_icon.png")
+                
+                # Crea l'istanza di NotificationDot con l'icona personalizzata
+                notification_dot = NotificationDot(icon_path)
+                
+                # Imposta un messaggio informativo iniziale
+                message = """
+# Call Assistant attivo
+Il tuo assistente per le **videochiamate** è attivo.
+Premi **Ctrl+Alt+M** per avviare o interrompere il monitoraggio audio.
+                """
+                notification_dot.set_notification(message)
+            
+            # Mostra la GUI
+            notification_dot.show()
+            gui_active = True
+        
+        elif not videocall_running and notification_dot is not None:
+            # Disattiva la GUI
+            print("Disattivazione della GUI - Nessuna videochiamata in corso")
+            notification_dot.hide()  # Nasconde la GUI invece di distruggerla
+            gui_active = False
+        
+        # Aggiorna lo stato
+        last_videocall_status = videocall_running
+
+
+def check_videocall_loop():
+    """Verifica periodicamente lo stato delle applicazioni di videochiamata e gestisce la GUI di conseguenza"""
+    global last_videocall_status
+    
+    while True:
+        # Controlla lo stato attuale delle applicazioni di videochiamata
+        videocall_running = check_videocall_apps()
+        
+        # Gestisci lo stato della GUI in base alla presenza di videochiamate
+        manage_gui_state(videocall_running)
+        
+        # Attendi prima del prossimo controllo
+        time.sleep(videocall_check_interval)
+
+
 def start_keyboard_listener():
     """Avvia il listener per la combinazione di tasti"""
     register_hotkey(toggle_audio_monitoring)
@@ -200,33 +270,44 @@ def start_keyboard_listener():
 
 
 if __name__ == "__main__":
+    # Inizializzazione dell'applicazione Qt
+    if not QApplication.instance():
+        app = QApplication(sys.argv)
+    
+    # Verifica iniziale dello stato delle videochiamate
     apps = check_videocall_apps()
-    if apps:
-        print("Video call applications are running.")
-        # Avvia il listener per la combinazione di tasti in un thread separato
-        if SYSTEM == "Windows":
-            keyboard_thread = threading.Thread(
-                target=start_keyboard_listener, daemon=True
-            )
-            keyboard_thread.start()
-
-            try:
-                # Mantieni il thread principale in esecuzione
+    print(f"Stato iniziale: {'Videochiamata in corso' if apps else 'Nessuna videochiamata in corso'}")
+    
+    # Gestisci lo stato della GUI in base allo stato iniziale
+    manage_gui_state(apps)
+    
+    # Avvia il ciclo di controllo delle applicazioni di videochiamata in un thread separato
+    videocall_thread = threading.Thread(target=check_videocall_loop, daemon=True)
+    videocall_thread.start()
+    
+    # Avvia il listener per la combinazione di tasti in un thread separato (solo per Windows)
+    if SYSTEM == "Windows":
+        keyboard_thread = threading.Thread(target=start_keyboard_listener, daemon=True)
+        keyboard_thread.start()
+        
+        try:
+            # Se stiamo usando la GUI, esegui il loop di eventi Qt
+            if gui_active:
+                print("Esecuzione del loop di eventi Qt...")
+                sys.exit(app.exec())
+            else:
+                # Altrimenti, mantieni il thread principale in esecuzione
                 while True:
                     time.sleep(0.1)
-            except KeyboardInterrupt:
-                print("\nProgramma interrotto dall'utente.")
-                if audio_monitor and monitoring_active:
-                    audio_monitor.stop_monitoring()
-                    # ...codice per la sintesi quando il programma viene interrotto...
-        else:
-            # Per macOS e altri sistemi eseguiamo direttamente il listener
-            try:
-                start_keyboard_listener()
-            except KeyboardInterrupt:
-                print("\nProgramma interrotto dall'utente.")
-                if audio_monitor and monitoring_active:
-                    audio_monitor.stop_monitoring()
-                    # ...codice per la sintesi quando il programma viene interrotto...
+        except KeyboardInterrupt:
+            print("\nProgramma interrotto dall'utente.")
+            if audio_monitor and monitoring_active:
+                audio_monitor.stop_monitoring()
     else:
-        print("No video call applications are running.")
+        # Per macOS e altri sistemi eseguiamo direttamente il listener
+        try:
+            start_keyboard_listener()
+        except KeyboardInterrupt:
+            print("\nProgramma interrotto dall'utente.")
+            if audio_monitor and monitoring_active:
+                audio_monitor.stop_monitoring()
