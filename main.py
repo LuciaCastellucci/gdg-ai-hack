@@ -4,6 +4,8 @@ import os
 import keyboard
 import threading
 import time
+import json
+import requests
 
 # Aggiungi il percorso della directory agents al path di Python
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
@@ -31,12 +33,46 @@ def toggle_audio_monitoring():
         try:
             timestamp = int(time.time())
             output_file = f"output/sintesi_{timestamp}.txt"
-            result = synthesize_audio_folder(output_file=output_file)
+            
+            # Ask if the user wants to save the synthesis to the database
+            save_to_db = input("\nVuoi salvare la sintesi nel database? (s/n): ").lower() in ['s', 'si', 'sì', 'yes', 'y']
+            
+            if save_to_db:
+                # Get required information from the user
+                topic = input("Inserisci l'argomento della chiamata: ")
+                
+                # Get participants as a comma-separated list
+                participants_input = input("Inserisci i partecipanti (separati da virgola): ")
+                participants = [p.strip() for p in participants_input.split(",") if p.strip()]
+                
+                # Validate input
+                if not topic:
+                    print("L'argomento è obbligatorio.")
+                    topic = input("Inserisci l'argomento della chiamata: ")
+                
+                if not participants:
+                    print("Almeno un partecipante è obbligatorio.")
+                    participants_input = input("Inserisci i partecipanti (separati da virgola): ")
+                    participants = [p.strip() for p in participants_input.split(",") if p.strip()]
+                
+                # Synthesize and save to database
+                result = synthesize_audio_folder(
+                    output_file=output_file,
+                    save_to_db=True,
+                    topic=topic,
+                    participants=participants
+                )
+            else:
+                # Just synthesize without saving to database
+                result = synthesize_audio_folder(output_file=output_file)
+            
             print("\nSINTESI DELLE REGISTRAZIONI:")
             print("=" * 70)
             print(result)
             print("=" * 70)
             print(f"\nLa sintesi è stata salvata nel file: {output_file}")
+            if save_to_db:
+                print("La sintesi è stata salvata anche nel database.")
         except Exception as e:
             print(f"Errore durante la sintesi: {e}")
     else:
@@ -90,12 +126,46 @@ if __name__ == "__main__":
                 try:
                     timestamp = int(time.time())
                     output_file = f"output/sintesi_{timestamp}.txt"
-                    result = synthesize_audio_folder(output_file=output_file)
+                    
+                    # Ask if the user wants to save the synthesis to the database
+                    save_to_db = input("\nVuoi salvare la sintesi nel database? (s/n): ").lower() in ['s', 'si', 'sì', 'yes', 'y']
+                    
+                    if save_to_db:
+                        # Get required information from the user
+                        topic = input("Inserisci l'argomento della chiamata: ")
+                        
+                        # Get participants as a comma-separated list
+                        participants_input = input("Inserisci i partecipanti (separati da virgola): ")
+                        participants = [p.strip() for p in participants_input.split(",") if p.strip()]
+                        
+                        # Validate input
+                        if not topic:
+                            print("L'argomento è obbligatorio.")
+                            topic = input("Inserisci l'argomento della chiamata: ")
+                        
+                        if not participants:
+                            print("Almeno un partecipante è obbligatorio.")
+                            participants_input = input("Inserisci i partecipanti (separati da virgola): ")
+                            participants = [p.strip() for p in participants_input.split(",") if p.strip()]
+                        
+                        # Synthesize and save to database
+                        result = synthesize_audio_folder(
+                            output_file=output_file,
+                            save_to_db=True,
+                            topic=topic,
+                            participants=participants
+                        )
+                    else:
+                        # Just synthesize without saving to database
+                        result = synthesize_audio_folder(output_file=output_file)
+                    
                     print("\nSINTESI DELLE REGISTRAZIONI:")
                     print("=" * 70)
                     print(result)
                     print("=" * 70)
                     print(f"\nLa sintesi è stata salvata nel file: {output_file}")
+                    if save_to_db:
+                        print("La sintesi è stata salvata anche nel database.")
                 except Exception as e:
                     print(f"Errore durante la sintesi: {e}")
     else:

@@ -4,6 +4,9 @@ from pathlib import Path
 import base64
 from typing import List, Optional
 import time
+import requests
+import json
+import datetime
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -16,6 +19,9 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("Google API key not found. Make sure the .env file contains the GEMINI_API_KEY variable.")
+
+# API endpoint for saving call logs
+API_BASE_URL = "http://localhost:8000"
 
 def audio_to_base64(file_path: str) -> str:
     """Convert an audio file to base64 encoding."""
@@ -51,7 +57,58 @@ def transcribe_audio_file(file_path: str) -> str:
         print(f"Errore nella trascrizione del file {file_path}: {e}")
         return f"[Impossibile trascrivere {os.path.basename(file_path)}: {str(e)}]"
 
-def synthesize_audio_folder(folder_path: str = 'output/audio', output_file: Optional[str] = None) -> str:
+def save_synthesis_to_db(synthesis: str, topic: str, participants: List[str]) -> dict:
+    """
+    Save the synthesis to the database using the API
+    
+    Args:
+        synthesis: The synthesized text
+        topic: The topic of the call
+        participants: List of participant names
+        
+    Returns:
+        The response from the API as a dictionary
+    """
+    try:
+        # Get current date in the required format (YYYY-MM-DD)
+        current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Prepare data for the API call
+        call_log_data = {
+            "date": current_date,
+            "topic": topic,
+            "participants": participants,
+            "report": {
+                "date": current_date,
+                "topic": topic,
+                "content": synthesis,
+                "timestamp_expected": datetime.datetime.now().strftime("%H:%M"),
+                "timestamp_actual": datetime.datetime.now().strftime("%H:%M")
+            }
+        }
+        
+        # Make the API call
+        response = requests.post(
+            f"{API_BASE_URL}/call-logs",
+            json=call_log_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        # Check if the request was successful
+        if response.status_code == 201:
+            print(f"Successfully saved synthesis to database with ID: {response.json().get('_id')}")
+            return response.json()
+        else:
+            print(f"Failed to save synthesis: HTTP {response.status_code} - {response.text}")
+            return {"error": f"HTTP {response.status_code}", "message": response.text}
+            
+    except Exception as e:
+        print(f"Error saving synthesis to database: {e}")
+        return {"error": str(e)}
+
+def synthesize_audio_folder(folder_path: str = 'output/audio', output_file: Optional[str] = None, 
+                           save_to_db: bool = False, topic: Optional[str] = None, 
+                           participants: Optional[List[str]] = None) -> str:
     """
     Prende tutti i file audio nella cartella specificata, li trascrive e
     sintetizza il contenuto utilizzando Gemini.
@@ -59,6 +116,9 @@ def synthesize_audio_folder(folder_path: str = 'output/audio', output_file: Opti
     Args:
         folder_path: Percorso della cartella contenente i file audio (default: 'output/audio')
         output_file: Percorso del file dove salvare il risultato della sintesi (opzionale)
+        save_to_db: Indica se salvare la sintesi nel database (default: False)
+        topic: Argomento della chiamata (necessario se save_to_db è True)
+        participants: Lista dei partecipanti alla chiamata (necessario se save_to_db è True)
         
     Returns:
         Il testo sintetizzato
@@ -121,13 +181,19 @@ def synthesize_audio_folder(folder_path: str = 'output/audio', output_file: Opti
             f.write(synthesis)
         print(f"Sintesi salvata nel file: {output_file}")
     
+    # Salva nel database se richiesto
+    if save_to_db:
+        if not topic or not participants:
+            raise ValueError("Topic e participants sono richiesti per salvare nel database.")
+        save_synthesis_to_db(synthesis, topic, participants)
+    
     return synthesis
 
 if __name__ == "__main__":
     # Esempio di utilizzo
     timestamp = int(time.time())
     output_file = f"output/sintesi_{timestamp}.txt"
-    result = synthesize_audio_folder(output_file=output_file)
+    result = synthesize_audio_folder(output_file=output_file, save_to_db=True, topic="Meeting di progetto", participants=["Alice", "Bob", "Charlie"])
     print("\nSINTESI:")
     print("=" * 50)
     print(result)
