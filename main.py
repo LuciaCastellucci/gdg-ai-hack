@@ -9,6 +9,7 @@ import time
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
 
 from audio import AudioMonitor, process
+from synthesizer import synthesize_audio_folder
 
 # Variabile globale per tenere traccia del monitor audio
 audio_monitor = None
@@ -24,6 +25,20 @@ def toggle_audio_monitoring():
             audio_monitor.stop_monitoring()
             audio_monitor = None
         monitoring_active = False
+        
+        # Esegui la sintesi delle registrazioni audio dopo l'interruzione del monitoraggio
+        print("\nAvvio della sintesi delle registrazioni audio...")
+        try:
+            timestamp = int(time.time())
+            output_file = f"output/sintesi_{timestamp}.txt"
+            result = synthesize_audio_folder(output_file=output_file)
+            print("\nSINTESI DELLE REGISTRAZIONI:")
+            print("=" * 70)
+            print(result)
+            print("=" * 70)
+            print(f"\nLa sintesi è stata salvata nel file: {output_file}")
+        except Exception as e:
+            print(f"Errore durante la sintesi: {e}")
     else:
         print("Avvio del monitoraggio audio...")
         audio_monitor = AudioMonitor(
@@ -71,6 +86,18 @@ if __name__ == "__main__":
             print("\nProgramma interrotto dall'utente.")
             if audio_monitor and monitoring_active:
                 audio_monitor.stop_monitoring()
+                # Esegui la sintesi delle registrazioni audio anche quando il programma viene interrotto
+                try:
+                    timestamp = int(time.time())
+                    output_file = f"output/sintesi_{timestamp}.txt"
+                    result = synthesize_audio_folder(output_file=output_file)
+                    print("\nSINTESI DELLE REGISTRAZIONI:")
+                    print("=" * 70)
+                    print(result)
+                    print("=" * 70)
+                    print(f"\nLa sintesi è stata salvata nel file: {output_file}")
+                except Exception as e:
+                    print(f"Errore durante la sintesi: {e}")
     else:
         print("No video call applications are running.")
     
