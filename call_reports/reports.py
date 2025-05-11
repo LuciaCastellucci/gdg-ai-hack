@@ -5,11 +5,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import os
-import datetime
 import requests
-from datetime import datetime, timedelta
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 # Add the parent directory to sys.path to import synthesizer
 parent_dir = str(Path(__file__).parent.parent)
@@ -69,9 +68,9 @@ def fetch_topics_from_calendar():
             token.write(creds.to_json())
     try:
         service = build("calendar", "v3", credentials=creds)
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.now(tz=timezone.utc)
         now_iso = now.isoformat()
-        time_max = (now + datetime.timedelta(hours=24)).isoformat()
+        time_max = (now + timedelta(hours=24)).isoformat()
         events_result = (
             service.events()
             .list(
@@ -160,7 +159,7 @@ def parse_datetime(dt_string: str) -> Optional[datetime]:
         return None
 
 
-def create_report():
+def create_report(notification_callback=None):
     """
     Create reports for upcoming calendar events based on their start time.
     
@@ -170,15 +169,27 @@ def create_report():
     
     For events starting in more than 30 minutes (but less than 60):
     - Retrieve existing reports for quick review
+    
+    Args:
+        notification_callback (callable, optional): Function to call with the synthesis content
+        
+    Returns:
+        str: A summary of the reports created or found
     """
     topics = fetch_topics_from_calendar()
     if not topics:
         print("No topics found in calendar.")
-        return
+        return "Nessun evento trovato nel calendario."
     
     current_time = datetime.now().astimezone()  # Current time with timezone info
     print(f"Current time: {current_time}")
     print(f"Found {len(topics)} upcoming events")
+    
+    # Teniamo traccia dello stato di generazione dei report
+    report_summary = []
+    
+    # Per la notifica, useremo il contenuto del primo report significativo
+    first_synthesis = None
     
     for start_str, topic in topics:
         start_time = parse_datetime(start_str)
@@ -197,6 +208,10 @@ def create_report():
             if files or call_logs:
                 synthesis = synthesize_report_content(files, call_logs)
                 print(f"Synthesis generated for {topic}: {len(synthesis)} characters")
+                
+                # Salva il primo report significativo per la notifica
+                if first_synthesis is None:
+                    first_synthesis = synthesis
                 
                 # Create a Report object and save it to the database
                 current_date = datetime.now().strftime("%Y-%m-%d")
@@ -219,12 +234,16 @@ def create_report():
                     )
                     if response.status_code == 201:
                         print(f"Report saved to database with ID: {response.json().get('_id')}")
+                        report_summary.append(f"☑️ Creato report per '{topic}' (tra {time_diff})")
                     else:
                         print(f"Failed to save report: HTTP {response.status_code}")
+                        report_summary.append(f"❌ Errore nel salvare il report per '{topic}'")
                 except Exception as e:
                     print(f"Error saving report to database: {e}")
+                    report_summary.append(f"❌ Errore nel salvare il report per '{topic}': {str(e)}")
             else:
                 print(f"No files or call logs found for topic: {topic}")
+                report_summary.append(f"ℹ️ Nessun file o registro chiamate trovato per '{topic}'")
         
         # For events between 30-60 minutes in the future
         elif time_diff >= timedelta(minutes=30):
@@ -232,7 +251,27 @@ def create_report():
             reports = get_reports_by_topic(topic)
             if reports:
                 print(f"Found {len(reports)} existing reports for {topic}")
-                # Here you could display the reports or save them for quick access
-                # TODO: print reports
+                report_summary.append(f"📑 Trovati {len(reports)} report esistenti per '{topic}' (tra {time_diff})")
+                
+                # Se non abbiamo ancora un report significativo, usa il primo report esistente
+                if first_synthesis is None and reports:
+                    first_synthesis = reports[0]
             else:
                 print(f"No existing reports found for topic: {topic}")
+                report_summary.append(f"ℹ️ Nessun report esistente per '{topic}' (tra {time_diff})")
+    
+    # Crea un riassunto completo per il log
+    summary = "\n".join(report_summary)
+    final_summary = f"Riepilogo report ({len(topics)} eventi):\n\n{summary}"
+    print(final_summary)
+    
+    # Invia una notifica con il contenuto del report
+    if notification_callback and first_synthesis:
+        # Prepariamo un titolo per il report
+        if len(topics) > 0:
+            # Usa il titolo del primo evento con report
+            event_topic = topics[0][1]
+            notification_message = f"📋 Report per: {event_topic}\n\n{first_synthesis}"
+            notification_callback(notification_message)
+    
+    return final_summary

@@ -6,7 +6,7 @@ from typing import List, Optional
 import time
 import requests
 import json
-import datetime
+from datetime import datetime
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -82,7 +82,7 @@ def save_synthesis_to_db(synthesis: str, topic: str, participants: List[str]) ->
     """
     try:
         # Get current date in the required format (YYYY-MM-DD)
-        current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        current_date = datetime.now().strftime("%Y-%m-%d")
 
         # Prepare data for the API call
         call_log_data = {

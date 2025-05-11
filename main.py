@@ -14,6 +14,7 @@ from audio import AudioMonitor, process
 from synthesizer import synthesize_audio_folder
 from gui import NotificationDot  # Importa la classe NotificationDot
 from PySide6.QtWidgets import QApplication
+from call_reports.reports import create_report  # Importa la funzione create_report
 
 # Variabile globale per tenere traccia del monitor audio
 audio_monitor = None
@@ -225,18 +226,27 @@ def manage_gui_state(videocall_running: bool):
                 
                 # Crea l'istanza di NotificationDot con l'icona personalizzata
                 notification_dot = NotificationDot(icon_path)
-                
-                # Imposta un messaggio informativo iniziale
-                message = """
-# Call Assistant attivo
-Il tuo assistente per le **videochiamate** è attivo.
-Premi **Ctrl+Alt+M** per avviare o interrompere il monitoraggio audio.
-                """
-                notification_dot.set_notification(message)
+
+            # Imposta il messaggio di notifica
+            message = "Videochiamata in corso - Assistente attivo"
+            notification_dot.set_notification(message)
             
             # Mostra la GUI
             notification_dot.show()
             gui_active = True
+            
+            # Funzione di callback per aggiornare la notifica con il report
+            def notify_report(message):
+                if notification_dot:
+                    notification_dot.set_notification(message)
+            
+            # Chiamiamo il metodo create_report per generare report
+            try:
+                create_report(notification_callback=notify_report)
+            except Exception as e:
+                print(f"Errore durante la generazione dei report: {e}")
+                if notification_dot:
+                    notification_dot.set_notification(f"Errore durante la generazione dei report: {e}")
         
         elif not videocall_running and notification_dot is not None:
             # Disattiva la GUI

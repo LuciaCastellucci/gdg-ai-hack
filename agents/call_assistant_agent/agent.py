@@ -34,9 +34,7 @@ def find_file(file_description: str) -> str:
 
     # Define search paths (add or modify based on your needs)
     search_paths = [
-        os.path.expanduser("~\\Documents"),
-        os.path.expanduser("~\\Desktop"),
-        os.path.expanduser("~"),
+        os.path.expanduser("~\\Desktop\\Demo_Files")
         # Add more paths as needed
     ]
 

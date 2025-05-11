@@ -23,6 +23,7 @@ class NotificationDot(QMainWindow):
         self.has_notification = False
         
         # Carica l'icona personalizzata se specificata
+        icon_path = "call_assistant_icon.svg"
         self.custom_icon = None
         if icon_path and os.path.exists(icon_path):
             self.custom_icon = QPixmap(icon_path)
