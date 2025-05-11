@@ -12,4 +12,6 @@ wheels/
 # Env variables
 .env
 
+credentials.json
+token.json
 output/

@@ -21,7 +21,10 @@ dependencies = [
     "pymongo[srv]>=4.12.1",
     "pynput>=1.8.1",
     "python-dotenv>=1.1.0",
-    "keyboard>=0.13.5",
+    "google-api-python-client>=2.169.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.2",
+    "keyboard>=0.13.5"
 ]
 
 [dependency-groups]
